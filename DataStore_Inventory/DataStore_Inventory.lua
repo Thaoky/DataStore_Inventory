@@ -4,14 +4,24 @@ July 13th, 2009
 --]]
 if not DataStore then return end
 
-local addonName = "DataStore_Inventory"
+local addonName, addon = ...
+local thisCharacter
+local guilds
+local setInfo
+local collectedSets
+local appearancesCounters
+local options
 
-_G[addonName] = LibStub("AceAddon-3.0"):NewAddon(addonName, "AceConsole-3.0", "AceEvent-3.0", "AceComm-3.0", "AceSerializer-3.0")
+local DataStore = DataStore
+local TableInsert, TableConcat, strfind, format, strsplit, pairs, type, tonumber, select, time = table.insert, table.concat, string.find, format, strsplit, pairs, type, tonumber, select, time
+local GetAverageItemLevel, GetInventoryItemLink, GetItemInfo, GetItemInfoInstant, UnitClass, UnitName = GetAverageItemLevel, GetInventoryItemLink, GetItemInfo, GetItemInfoInstant, UnitClass, UnitName
+local C_TransmogCollection, C_TransmogSets = C_TransmogCollection, C_TransmogSets
 
-local addon = _G[addonName]
+local commPrefix = "DS_Inv"
+local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
 
-local commPrefix = "DS_Inv"		-- let's keep it a bit shorter than the addon name, this goes on a comm channel, a byte is a byte ffs :p
-local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+local L = DataStore:GetLocale(addonName)
+local bit64 = LibStub("LibBit64")
 
 -- Message types
 local MSG_SEND_AIL								= 1	-- Send AIL at login
@@ -19,61 +29,21 @@ local MSG_AIL_REPLY								= 2	-- reply
 local MSG_EQUIPMENT_REQUEST					= 3	-- request equipment ..
 local MSG_EQUIPMENT_TRANSFER					= 4	-- .. and send the data
 
-local AddonDB_Defaults = {
-	global = {
-		Options = {
-			AutoClearGuildInventory = false,		-- Automatically clear guild members' inventory at login
-			BroadcastAiL = true,						-- Broadcast professions at login or not
-			EquipmentRequestNotification = false,	-- Get a warning when someone requests my equipment
-		},
-		Reference = {
-			AppearancesCounters = {},				-- ex: ["MAGE"] = { [1] = "76/345" ... }	= category 1 => 76/345
-			CollectedSets = {},						-- ex: [setID] = true, list of collected sets
-			SetNumItems = {},							-- ex: [setID] = 8, number of pieces in a set
-			SetNumCollected = {},					-- ex: [setID] = 4, number of collected pieces in a set
-			SetIconIDs = {},							-- ex: [setID] = itemID, itemID of the icon that represents the set
-		},
-		Guilds = {
-			['*'] = {			-- ["Account.Realm.Name"] 
-				Members = {
-					['*'] = {				-- ["MemberName"] 
-						lastUpdate = nil,
-						averageItemLvl = 0,
-						Inventory = {},		-- 19 inventory slots, a simple table containing item id's or full item string if enchanted
-					}
-				}
-			},
-		},
-		Characters = {
-			['*'] = {				-- ["Account.Realm.Name"] 
-				lastUpdate = nil,
-				averageItemLvl = 0,
-				overallAIL = 0,
-				Inventory = {},		-- 19 inventory slots, a simple table containing item id's or full item string if enchanted
-			}
-		}
-	}
-}
-
 -- *** Utility functions ***
-local NUM_EQUIPMENT_SLOTS = 19
-
-local function GetOption(option)
-	return addon.db.global.Options[option]
-end
+local NUM_EQUIPMENT_SLOTS = 30			-- 30 slots when counting the new profession tools added in 10.0
 
 local function IsEnchanted(link)
 	if not link then return end
 	
-	if not string.find(link, "item:%d+:0:0:0:0:0:0:%d+:%d+:0:0") then	-- 7th is the UniqueID, 8th LinkLevel which are irrelevant
+	if not strfind(link, "item:%d+:0:0:0:0:0:0:%d+:%d+:0:0") then	-- 7th is the UniqueID, 8th LinkLevel which are irrelevant
 		-- enchants/jewels store values instead of zeroes in the link, if this string can't be found, there's at least one enchant/jewel
 		return true
 	end
 end
 
 local function GetThisGuild()
-	local key = DataStore:GetThisGuildKey()
-	return key and addon.db.global.Guilds[key] 
+	local guildID = DataStore:GetCharacterGuildID(DataStore.ThisCharKey)
+	return guildID and guilds[guildID] 
 end
 
 local function GetMemberKey(guild, member)
@@ -81,10 +51,14 @@ local function GetMemberKey(guild, member)
 	--	Either it's a known alt ==> point to the characters table
 	--	Or it's a guild member ==> point to the guild table
 	local main = DataStore:GetNameOfMain(member)
+	
 	if main and main == UnitName("player") then
 		local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
-		return addon.db.global.Characters[key]
+		local id = DataStore:GetCharacterID(key)
+		
+		return DataStore_Inventory_Characters[id]
 	end
+	
 	return guild.Members[member]
 end
 
@@ -95,43 +69,37 @@ local function GetAIL(alts)
 	
 	local character = DataStore:GetCharacter()	-- this character
 	local ail = DataStore:GetAverageItemLevel(character)
-	table.insert(out, format("%s:%d", UnitName("player"), ail))
+	TableInsert(out, format("%s:%d", UnitName("player"), ail))
 
 	if strlen(alts) > 0 then
 		for _, name in pairs( { strsplit("|", alts) }) do	-- then all his alts
 			character = DataStore:GetCharacter(name)
+			
 			if character then
 				ail = DataStore:GetAverageItemLevel(character)
+				
 				if ail then
-					table.insert(out, format("%s:%d", name, ail))
+					TableInsert(out, format("%s:%d", name, ail))
 				end
 			end
 		end
 	end
-	return table.concat(out, "|")
+
+	return TableConcat(out, "|")
 end
 
 local function SaveAIL(sender, ailList)
 	local thisGuild = GetThisGuild()
 	if not thisGuild then return end
 	
+	thisGuild.Members = thisGuild.Members or {}
+	
 	for _, ailChar in pairs( { strsplit("|", ailList) }) do	-- "char:ail | char:ail | ..."
 		local name, ail = strsplit(":", ailChar)
+		
 		if name and ail then
 			thisGuild.Members[name].averageItemLvl = tonumber(ail)
 		end
-	end
-end
-
-local function GuildBroadcast(messageType, ...)
-	local serializedData = addon:Serialize(messageType, ...)
-	addon:SendCommMessage(commPrefix, serializedData, "GUILD")
-end
-
-local function GuildWhisper(player, messageType, ...)
-	if DataStore:IsGuildMemberOnline(player) then
-		local serializedData = addon:Serialize(messageType, ...)
-		addon:SendCommMessage(commPrefix, serializedData, "WHISPER", player)
 	end
 end
 
@@ -147,15 +115,17 @@ end
 local handleItemInfo
 
 local function ScanAverageItemLevel()
+	local char = thisCharacter
+	char.lastUpdate = time()
+	char.overallAIL = 0
 
 	-- GetAverageItemLevel only exists in retail
 	if type(GetAverageItemLevel) == "function" then
 
 		local overallAiL, AiL = GetAverageItemLevel()
 		if overallAiL and AiL and overallAiL > 0 and AiL > 0 then
-			local character = addon.ThisCharacter
-			character.overallAIL = overallAiL
-			character.averageItemLvl = AiL
+			char.overallAIL = overallAiL
+			char.averageItemLvl = AiL
 		end
 		return
 	end
@@ -164,11 +134,13 @@ local function ScanAverageItemLevel()
 	local totalItemLevel = 0
 	local itemCount = 0
 	
-	for i = 1, NUM_EQUIPMENT_SLOTS do
+	-- Only the 18 first slots are relevant when scanning the AiL (19 = tabard, followed by profession tools)
+	for i = 1, 18 do
 		local link = GetInventoryItemLink("player", i)
-		if link then
 		
+		if link then
 			local itemName = GetItemInfo(link)
+			
 			if not itemName then
 				--print("Waiting for equipment slot "..i) --debug
 				handleItemInfo = true
@@ -176,7 +148,7 @@ local function ScanAverageItemLevel()
 				return -- wait for GET_ITEM_INFO_RECEIVED (will be triggered by non-cached itemInfo request)
 			end
 
-			if (i ~= 4) and (i ~= 19) then		-- InventorySlotId 4 = shirt, 19 = tabard, skip them
+			if i ~= 4 then		-- InventorySlotId 4 = shirt
 				itemCount = itemCount + 1
 				totalItemLevel = totalItemLevel + tonumber(((select(4, GetItemInfo(link))) or 0))
 			end
@@ -187,12 +159,11 @@ local function ScanAverageItemLevel()
 	-- On an alt with no gear, the "if link" in the loop could always be nil, and thus the itemCount could be zero
 	-- leading to a division by zero, so intercept this case
 	--print(format("total: %d, count: %d, ail: %d",totalItemLevel, itemCount, totalItemLevel / itemCount)) --DAC
-	addon.ThisCharacter.averageItemLvl = totalItemLevel / math.max(itemCount, 1) -- math.max fixes divide by zero (bug credit: qwarlocknew)
-	addon.ThisCharacter.lastUpdate = time()	
+	char.averageItemLvl = totalItemLevel / math.max(itemCount, 1) -- math.max fixes divide by zero (bug credit: qwarlocknew)
 end
 
 local function ScanInventorySlot(slot)
-	local inventory = addon.ThisCharacter.Inventory
+	local inventory = thisCharacter.Inventory
 	local link = GetInventoryItemLink("player", slot)
 
 	local currentContent = inventory[slot]
@@ -208,36 +179,35 @@ local function ScanInventorySlot(slot)
 	end
 	
 	if currentContent ~= inventory[slot] then		-- the content of this slot has actually changed since last scan
-		addon:SendMessage("DATASTORE_INVENTORY_SLOT_UPDATED", slot)
+		DataStore:Broadcast("DATASTORE_INVENTORY_SLOT_UPDATED", slot)
 	end
 end
 
 local function ScanInventory()
+	-- info at : https://wowpedia.fandom.com/wiki/InventorySlotId
 	for slot = 1, NUM_EQUIPMENT_SLOTS do
 		ScanInventorySlot(slot)
 	end
 	
-	addon.ThisCharacter.lastUpdate = time()
+	thisCharacter.lastUpdate = time()
 end
 
 local function ScanTransmogCollection()
 	local _, englishClass = UnitClass("player")
 	
-	local counters = addon.db.global.Reference.AppearancesCounters
-	
-	counters[englishClass] = counters[englishClass] or {}
-	local classCounters = counters[englishClass]
-	local name
-	local collected, total
+	appearancesCounters[englishClass] = appearancesCounters[englishClass] or {}
+	local classCounters = appearancesCounters[englishClass]
 	
 	-- browse all categories
 	for i = 1, DataStore:GetHashSize(Enum.TransmogCollectionType) - 1 do
-		name = C_TransmogCollection.GetCategoryInfo(i)
+		local name = C_TransmogCollection.GetCategoryInfo(i)
 		if name then
-			collected = C_TransmogCollection.GetCategoryCollectedCount(i)
-			total = C_TransmogCollection.GetCategoryTotal(i)
+			local collected = C_TransmogCollection.GetCategoryCollectedCount(i)
+			local total = C_TransmogCollection.GetCategoryTotal(i)
 
-			classCounters[i] = format("%s/%s", collected, total)		-- [1] = "76/345" ...
+			-- ex: [1] = "76/345" but in an integer
+			classCounters[i] = total					-- bits 0-11, 12 bits = total appearances
+				+ bit64:LeftShift(collected, 12)		-- bits 12-23, 12 bits = number of collected appearances
 		end
 	end
 end
@@ -275,14 +245,11 @@ local classArmorMask = {
 }
 
 local function ScanTransmogSets()
-	local _, englishClass = UnitClass("player")
-	local collectedSets = addon.db.global.Reference.CollectedSets
-	-- counters[englishClass] = counters[englishClass] or {}
-	-- local classCounters = counters[englishClass]
-
 	local sets = C_TransmogSets.GetAllSets()
 	if not sets then return end
 
+	local englishClass = select(2, UnitClass("player"))
+	
 	for _, set in pairs(sets) do
 		local class = classMasks[set.classMask]
 		
@@ -291,26 +258,39 @@ local function ScanTransmogSets()
 		if class == englishClass then
 			local setID = set.setID
 
-			local appearances = C_TransmogSets.GetSetPrimaryAppearances(set.setID)
+			-- coming from Blizzard_Wardrobe.lua:
+			-- WardrobeSetsDataProviderMixin:GetSetSourceData
+			-- WardrobeSetsDataProviderMixin:GetSortedSetSources
+			local appearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
 			local numTotal = 0
 			local numCollected = 0
+			local iconID = 0
 
 			for _, appearance in pairs(appearances) do
 				numTotal = numTotal + 1
 				if appearance.collected then
 					numCollected = numCollected + 1
 
+					-- ex: [setID] = true, list of collected sets
 					collectedSets[setID] = collectedSets[setID] or {}
 					collectedSets[setID][appearance.appearanceID] = true
+				end
+				
+				local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
+				
+				-- 2 = head slot, couldn't find the constant for that :(
+				if info and info.invType == 2 then	
+					iconID = info.itemID
 				end
 			end
 
 			if numTotal == numCollected then
 				collectedSets[set.setID] = nil	-- if set is complete, kill the table, the counters will tell it
 			end
-
-			addon.db.global.Reference.SetNumItems[setID] = numTotal
-			addon.db.global.Reference.SetNumCollected[setID] = (numCollected ~= 0) and numCollected or nil
+		
+			setInfo[setID] = numTotal						-- bits 0-3, 4 bits = number of pieces in the set
+				+ bit64:LeftShift(numCollected, 4)		-- bits 4-7, 4 bits = number of collected pieces
+				+ bit64:LeftShift(iconID, 8)				-- bits 8+, iconID for this set
 		end
 	end
 end
@@ -321,7 +301,7 @@ local function OnPlayerAlive()
 	ScanInventory()
 	ScanAverageItemLevel()
 	
-	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+	if isRetail then
 		ScanTransmogSets()
 	end
 end
@@ -329,7 +309,7 @@ end
 local function OnPlayerEquipmentChanged(event, slot)
 	ScanInventorySlot(slot)
 	ScanAverageItemLevel()
-	addon.ThisCharacter.lastUpdate = time()
+	thisCharacter.lastUpdate = time()
 end
 
 local function OnPlayerAilReady()
@@ -393,11 +373,13 @@ local function _RequestGuildMemberEquipment(member)
 	-- requests the equipment of a given character (alt or main)
 	local player = UnitName("player")
 	local main = DataStore:GetNameOfMain(member)
+	
 	if not main then 		-- player is offline, check if his equipment is in the DB
 		local thisGuild = GetThisGuild()
+		
 		if thisGuild and thisGuild.Members[member] then		-- player found
 			if thisGuild.Members[member].Inventory then		-- equipment found
-				addon:SendMessage("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
+				DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 				return
 			end
 		end
@@ -405,7 +387,7 @@ local function _RequestGuildMemberEquipment(member)
 	
 	if main == player then	-- if player requests the equipment of one of own alts, process the request locally, using the network works fine, but let's save the traffic.
 		-- trigger the same event, _GetGuildMemberInventoryItem will take care of picking the data in the right place
-		addon:SendMessage("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
+		DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 		return
 	end
 	
@@ -417,7 +399,7 @@ local function _RequestGuildMemberEquipment(member)
 	end
 	
 	sentRequests[main] = time()		-- timestamp of the last request sent to this player
-	GuildWhisper(main, MSG_EQUIPMENT_REQUEST, member)
+	DataStore:GuildWhisper(commPrefix, main, MSG_EQUIPMENT_REQUEST, member)
 end
 
 local function _GetGuildMemberInventoryItem(guild, member, slotID)
@@ -437,93 +419,67 @@ local function _GetGuildMemberAverageItemLevel(guild, member)
 end
 
 local function _GetSetIcon(setID)
-	local iconIDs = addon.db.global.Reference.SetIconIDs
-
+	
+	-- *** now loaded through a scan, should not be necessary anymore. ***
 	-- no cached item id ? look for one
-	if not iconIDs[setID] then 
+	-- if not setInfo[setID] then 
 		-- coming from Blizzard_Wardrobe.lua:
 		-- WardrobeSetsDataProviderMixin:GetSetSourceData
 		-- WardrobeSetsDataProviderMixin:GetSortedSetSources
-		local apppearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
+		-- local appearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
 		
-		for _, appearance in pairs(apppearances) do
-			local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
+		-- for _, appearance in pairs(appearances) do
+			-- local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
 			
 			-- 2 = head slot, couldn't find the constant for that :(
-			if info and info.invType == 2 then	
-				iconIDs[setID] = info.itemID
-				break	-- we found the item we were looking for, leave the loop
-			end
-		end
-	end
+			-- if info and info.invType == 2 then	
+				-- iconIDs[setID] = info.itemID
+				-- break	-- we found the item we were looking for, leave the loop
+			-- end
+		-- end
+	-- end
 
-	if iconIDs[setID] then
-		local _, _, _, _, icon = GetItemInfoInstant(iconIDs[setID])
-		return icon
+	if setInfo[setID] then
+		local iconID = bit64:RightShift(setInfo[setID], 8)		-- bits 8+, iconID for this set
+	
+		-- return the icon
+		return select(5, GetItemInfoInstant(iconID))
 	end
+	
 	return QUESTION_MARK_ICON
 end
 
+local function _GetCollectedSetInfo(setID)
+	-- numCollected, numTotal
+	return bit64:GetBits(setInfo[setID], 4, 4), bit64:GetBits(setInfo[setID], 0, 4)
+end
+
 local function _IsSetCollected(setID)
-	local ref = addon.db.global.Reference
-
-	-- should not be nil, but default to -1 to fail comparison below
-	local numTotal = ref.SetNumItems[setID] or -1
-
-	-- may be nil (= 0 collected)
-	local numCollected = ref.SetNumCollected[setID] or 0
-
-	return (numCollected == numTotal)
+	local numCollected, numTotal = _GetCollectedSetInfo(setID)
+	return (numCollected == numTotal) and numTotal ~= 0
 end
 
 local function _IsSetItemCollected(setID, sourceID)
-	local set = addon.db.global.Reference.CollectedSets[setID]
-	return (set and set[sourceID])
+	local set = collectedSets[setID]
+	return set and set[sourceID]
 end
 
-local function _GetCollectedSetInfo(setID)
-	local ref = addon.db.global.Reference
-
-	local numTotal = ref.SetNumItems[setID] or 0
-	local numCollected = ref.SetNumCollected[setID] or 0
-
-	return numCollected, numTotal
-end
-
-
-local PublicMethods = {
-	GetInventory = _GetInventory,
-	GetInventoryItem = _GetInventoryItem,
-	GetInventoryItemCount = _GetInventoryItemCount,
-	GetAverageItemLevel = _GetAverageItemLevel,
-	RequestGuildMemberEquipment = _RequestGuildMemberEquipment,
-	GetGuildMemberInventoryItem = _GetGuildMemberInventoryItem,
-	GetGuildMemberAverageItemLevel = _GetGuildMemberAverageItemLevel,
-}
-
-if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
-	PublicMethods.IterateInventory = _IterateInventory
-	PublicMethods.GetSetIcon = _GetSetIcon
-	PublicMethods.IsSetCollected = _IsSetCollected
-	PublicMethods.IsSetItemCollected = _IsSetItemCollected
-	PublicMethods.GetCollectedSetInfo = _GetCollectedSetInfo
-end
 
 
 -- *** Guild Comm ***
 local function OnGuildAltsReceived(self, sender, alts)
-	if sender == UnitName("player") and GetOption("BroadcastAiL") then				-- if I receive my own list of alts in the same guild, same realm, same account..
-		GuildBroadcast(MSG_SEND_AIL, GetAIL(alts))	-- ..then broacast AIL
+	if sender == UnitName("player") and options.BroadcastAiL then				-- if I receive my own list of alts in the same guild, same realm, same account..
+		DataStore:GuildBroadcast(commPrefix, MSG_SEND_AIL, GetAIL(alts))	-- ..then broacast AIL
 	end
 end
 
-local GuildCommCallbacks = {
+local commCallbacks = {
 	[MSG_SEND_AIL] = function(sender, ail)
 			local player = UnitName("player")
 			if sender ~= player then						-- don't send back to self
 				local alts = DataStore:GetGuildMemberAlts(player)			-- get my own alts
-				if alts and GetOption("BroadcastAiL") then
-					GuildWhisper(sender, MSG_AIL_REPLY, GetAIL(alts))		-- .. and send them back
+				if alts and options.BroadcastAiL then
+					DataStore:GuildWhisper(commPrefix, sender, MSG_AIL_REPLY, GetAIL(alts))		-- .. and send them back
 				end
 			end
 			SaveAIL(sender, ail)
@@ -532,13 +488,13 @@ local GuildCommCallbacks = {
 			SaveAIL(sender, ail)
 		end,
 	[MSG_EQUIPMENT_REQUEST] = function(sender, character)
-			if GetOption("EquipmentRequestNotification") then
+			if options.EquipmentRequestNotification then
 				addon:Print(format(L["%s is inspecting %s"], sender, character))
 			end
 	
 			local key = DataStore:GetCharacter(character)	-- this realm, this account
 			if key then
-				GuildWhisper(sender, MSG_EQUIPMENT_TRANSFER, character, DataStore:GetInventory(key))
+				DataStore:GuildWhisper(commPrefix, sender, MSG_EQUIPMENT_TRANSFER, character, DataStore:GetInventory(key))
 			end
 		end,
 	[MSG_EQUIPMENT_TRANSFER] = function(sender, character, equipment)
@@ -546,56 +502,85 @@ local GuildCommCallbacks = {
 			if thisGuild then
 				thisGuild.Members[character].Inventory = equipment
 				thisGuild.Members[character].lastUpdate = time()
-				addon:SendMessage("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", sender, character)
+				DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", sender, character)
 			end
 		end,
 }
 
-function addon:OnInitialize()
-	addon.db = LibStub("AceDB-3.0"):New(addonName .. "DB", AddonDB_Defaults)
+DataStore:OnAddonLoaded(addonName, function()
+	DataStore:RegisterModule({
+		addon = addon,
+		addonName = addonName,
+		rawTables = {
+			"DataStore_Inventory_SetInfo",
+			"DataStore_Inventory_CollectedSets",
+			"DataStore_Inventory_AppearancesCounters",
+			"DataStore_Inventory_Options"
+		},
+		characterTables = {
+			["DataStore_Inventory_Characters"] = {
+				GetInventory = _GetInventory,
+				GetInventoryItem = _GetInventoryItem,
+				GetInventoryItemCount = _GetInventoryItemCount,
+				GetAverageItemLevel = _GetAverageItemLevel,
+				IterateInventory = isRetail and _IterateInventory,
+			},
+		},
+		guildTables = {
+			["DataStore_Inventory_Guilds"] = {
+				GetGuildMemberInventoryItem = _GetGuildMemberInventoryItem,
+				GetGuildMemberAverageItemLevel = _GetGuildMemberAverageItemLevel,
+			},
+		},
+	})
+	
+	thisCharacter = DataStore:GetCharacterDB("DataStore_Inventory_Characters", true)
+	thisCharacter.Inventory = thisCharacter.Inventory or {}
+	
+	guilds = DataStore_Inventory_Guilds
+	setInfo = DataStore_Inventory_SetInfo
+	collectedSets = DataStore_Inventory_CollectedSets
+	appearancesCounters = DataStore_Inventory_AppearancesCounters
+	
 
-	DataStore:RegisterModule(addonName, addon, PublicMethods)
-	DataStore:SetGuildCommCallbacks(commPrefix, GuildCommCallbacks)
+	DataStore:SetGuildCommCallbacks(commPrefix, commCallbacks)
+	DataStore:ListenTo("DATASTORE_GUILD_ALTS_RECEIVED", OnGuildAltsReceived)
+	DataStore:OnGuildComm(commPrefix, DataStore:GetGuildCommHandler())
 	
-	DataStore:SetCharacterBasedMethod("GetInventory")
-	DataStore:SetCharacterBasedMethod("GetInventoryItem")
-	DataStore:SetCharacterBasedMethod("GetInventoryItemCount")
-	DataStore:SetCharacterBasedMethod("GetAverageItemLevel")
+	DataStore:RegisterMethod(addon, "RequestGuildMemberEquipment", _RequestGuildMemberEquipment)
 	
-	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
-		DataStore:SetCharacterBasedMethod("IterateInventory")
-	end
-	
-	DataStore:SetGuildBasedMethod("GetGuildMemberInventoryItem")
-	DataStore:SetGuildBasedMethod("GetGuildMemberAverageItemLevel")
-	
-	addon:RegisterMessage("DATASTORE_GUILD_ALTS_RECEIVED", OnGuildAltsReceived)
-	addon:RegisterComm(commPrefix, DataStore:GetGuildCommHandler())
-end
+	-- Stop here for non-retail
+	if not isRetail then return end
 
-function addon:OnEnable()
-	addon:RegisterEvent("PLAYER_ALIVE", OnPlayerAlive)
-	addon:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
+	DataStore:RegisterMethod(addon, "GetSetIcon", _GetSetIcon)
+	DataStore:RegisterMethod(addon, "IsSetCollected", _IsSetCollected)
+	DataStore:RegisterMethod(addon, "IsSetItemCollected", _IsSetItemCollected)
+	DataStore:RegisterMethod(addon, "GetCollectedSetInfo", _GetCollectedSetInfo)
+end)
+
+DataStore:OnPlayerLogin(function()
+	options = DataStore_Inventory_Options
 	
-	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
-		-- addon:RegisterEvent("PLAYER_AVG_ITEM_LEVEL_READY", OnPlayerAilReady)
-		-- addon:RegisterEvent("TRANSMOG_COLLECTION_LOADED", OnTransmogCollectionLoaded)
-		addon:RegisterEvent("TRANSMOG_COLLECTION_UPDATED", OnTransmogCollectionUpdated)
+	options.AutoClearGuildInventory = options.AutoClearGuildInventory or false					-- Automatically clear guild members' inventory at login
+	options.BroadcastAiL = options.BroadcastAiL or true												-- Broadcast professions at login or not
+	options.EquipmentRequestNotification = options.EquipmentRequestNotification or false	-- Get a warning when someone requests my equipment
+	
+	addon:ListenTo("PLAYER_ALIVE", OnPlayerAlive)
+	addon:ListenTo("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
+	
+	if isRetail then
+		-- addon:ListenTo("PLAYER_AVG_ITEM_LEVEL_READY", OnPlayerAilReady)
+		-- addon:ListenTo("TRANSMOG_COLLECTION_LOADED", OnTransmogCollectionLoaded)
+		addon:ListenTo("TRANSMOG_COLLECTION_UPDATED", OnTransmogCollectionUpdated)
 	else
-		addon:RegisterEvent("GET_ITEM_INFO_RECEIVED", OnGetItemInfoReceived)
+		addon:ListenTo("GET_ITEM_INFO_RECEIVED", OnGetItemInfoReceived)
+		addon:SetupOptions()
 	end
 	
-	addon:SetupOptions()
-	
-	if GetOption("AutoClearGuildInventory") then
+	if options.AutoClearGuildInventory then
 		ClearGuildInventories()
 	end
-end
-
-function addon:OnDisable()
-	addon:UnregisterEvent("PLAYER_ALIVE")
-	addon:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED")
-end
+end)
 
 
 local PT = LibStub("LibPeriodicTable-3.1")

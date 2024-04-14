@@ -1,18 +1,15 @@
-## Interface: 100205
+## Interface: 100206
 ## Title: DataStore_Inventory
 ## IconTexture: Interface\Icons\garrison_building_storehouse
 
 ## Notes: Stores information about character inventory
 ## Author: Thaoky (EU-Marécages de Zangar)
-## Version: 2024.01.31
+## Version: 2024.04.14
 ## Dependencies: DataStore
-## OptionalDeps: Ace3
-## SavedVariables: DataStore_InventoryDB
+## SavedVariables: DataStore_Inventory_Characters, DataStore_Inventory_Guilds, DataStore_Inventory_SetInfo, DataStore_Inventory_CollectedSets, DataStore_Inventory_AppearancesCounters, DataStore_Inventory_Options
 ## X-Category: Interface Enhancements
-## X-Embeds: Ace3
 
-embeds.xml
-locale.xml
+Embeds.xml
+Locale.xml
 
 DataStore_Inventory.lua
-Options.xml

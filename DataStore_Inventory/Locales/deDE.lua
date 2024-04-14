@@ -1,5 +1,5 @@
-local L = LibStub("AceLocale-3.0"):NewLocale( "DataStore_Inventory", "deDE" )
-
+local addonName = ...
+local L = DataStore:SetLocale(addonName, "deDE")
 if not L then return end
 
 L["%s is inspecting %s"] = " %s besichtigt %s"
@@ -17,4 +17,3 @@ L["EQUIP_REQ_TEXT"] = "Benachrichtigung, wenn jemand die Ausrüstung eines meine
 L["EQUIP_REQ_TITLE"] = "Benachrichtigung bei Ausrüstungsanfrage"
 L["Heroic"] = "Heroisch"
 L["Trash Mobs"] = "Trash-Mobs"
-

@@ -1,9 +1,5 @@
-local debug = false
---[===[@debug@
-debug = true
---@end-debug@]===]
-
-local L = LibStub("AceLocale-3.0"):NewLocale("DataStore_Inventory", "enUS", true, debug)
+local addonName = ...
+local L = DataStore:SetDefaultLocale(addonName, "enUS")
 
 L["CLEAR_INVENTORY_TEXT"] = "Automatically clear guild members' equipment"
 L["CLEAR_INVENTORY_DISABLED"] = "Your guild mates' equipment remains in the database, and is visible even if they are offline."

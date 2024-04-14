@@ -1,5 +1,5 @@
-local L = LibStub("AceLocale-3.0"):NewLocale("DataStore_Inventory", "esES")
-
+local addonName = ...
+local L = DataStore:SetLocale(addonName, "esES")
 if not L then return end
 
 L["CLEAR_INVENTORY_DISABLED"] = "El equipo de tus compañeros de hermandad permanece en la base de datos, y es visible incluso si están desconectados."

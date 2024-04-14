@@ -1,5 +1,5 @@
-local L = LibStub("AceLocale-3.0"):NewLocale( "DataStore_Inventory", "zhTW" )
-
+local addonName = ...
+local L = DataStore:SetLocale(addonName, "zhTW")
 if not L then return end
 
 L["%s is inspecting %s"] = "%s 正在查看 %s"
@@ -17,4 +17,3 @@ L["EQUIP_REQ_TEXT"] = "當有人查看你的角色的裝備時通知你."
 L["EQUIP_REQ_TITLE"] = "查看裝備通知"
 L["Heroic"] = "英雄"
 L["Trash Mobs"] = "一般怪物"
-
