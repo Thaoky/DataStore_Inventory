@@ -1,0 +1,3 @@
+local addonName = ...
+local L = DataStore:SetLocale(addonName, "ptBR")
+if not L then return end
