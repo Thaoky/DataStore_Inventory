@@ -354,7 +354,7 @@ DataStore:OnAddonLoaded(addonName, function()
 				GetInventoryItem = _GetInventoryItem,
 				GetInventoryItemCount = _GetInventoryItemCount,
 				GetAverageItemLevel = _GetAverageItemLevel,
-				IterateInventory = isRetail and _IterateInventory,
+				IterateInventory = _IterateInventory,
 			},
 		},
 
