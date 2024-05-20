@@ -77,6 +77,7 @@ local function SaveAIL(sender, ailList)
 		local name, ail = strsplit(":", ailChar)
 		
 		if name and ail then
+			thisGuild.Members[name] = thisGuild.Members[name] or {}
 			thisGuild.Members[name].averageItemLvl = tonumber(ail)
 		end
 	end
