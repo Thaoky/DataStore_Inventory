@@ -85,7 +85,7 @@ end
 
 local function ClearGuildInventories()
 	local thisGuild = GetThisGuild()
-	if thisGuild then
+	if thisGuild and thisGuild.Members then
 		wipe(thisGuild.Members)
 	end
 end
