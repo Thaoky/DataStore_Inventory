@@ -13,4 +13,5 @@ Embeds.xml
 Locale.xml
 
 DataStore_Inventory.lua
+API\GuildComm.lua
 Options.xml
