@@ -1,4 +1,4 @@
-﻿## Interface: 80100
+## Interface: 100200
 ## LoadOnDemand: 1
 ## Title: Lib: PeriodicTable-3.1 [|cffeda55fCurrencyItems|r]
 ## Notes: PeriodicTable data module.
