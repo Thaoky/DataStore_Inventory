@@ -381,7 +381,7 @@ DataStore:OnPlayerLogin(function()
 	addon:ListenTo("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
 	
 	if isRetail then
-		-- addon:ListenTo("PLAYER_AVG_ITEM_LEVEL_READY", OnPlayerAilReady)
+		addon:ListenTo("PLAYER_AVG_ITEM_LEVEL_UPDATE", OnPlayerAilReady)
 		-- addon:ListenTo("TRANSMOG_COLLECTION_LOADED", OnTransmogCollectionLoaded)
 		addon:ListenTo("TRANSMOG_COLLECTION_UPDATED", OnTransmogCollectionUpdated)
 	else

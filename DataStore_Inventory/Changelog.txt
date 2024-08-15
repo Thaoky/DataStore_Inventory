@@ -2,6 +2,10 @@ DataStore Changelog (dates in dd/mm/yyyy)
 ===================
 
 
+Version 2024.08.15 (15/08/2024)
+
+- Fixed average item level not being properly updated.
+
 Version 2024.08.14 (14/08/2024)
 
 - ToC Update.
