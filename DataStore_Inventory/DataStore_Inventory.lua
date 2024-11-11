@@ -108,11 +108,60 @@ local function ScanInventorySlot(slot)
 end
 
 local function ScanInventory()
+	local numGreen = 0
+	local numBlue = 0
+	local numPurple = 0
+	local numHeirloom = 0
+	local lowestILevel = 0
+	local highestILevel = 0
+
 	-- info at : https://wowpedia.fandom.com/wiki/InventorySlotId
 	for slot = 1, NUM_EQUIPMENT_SLOTS do
 		ScanInventorySlot(slot)
+		
+		if isRetail and slot ~= 4 and slot < 19 then
+			-- https://wowpedia.fandom.com/wiki/ItemLocationMixin
+			local itemLoc = ItemLocation:CreateFromEquipmentSlot(slot)
+
+			if itemLoc:IsValid() then
+				local quality = C_Item.GetItemQuality(itemLoc)
+				
+				if quality == 2 then
+					numGreen = numGreen + 1
+				elseif quality == 3 then
+					numBlue = numBlue + 1
+				elseif quality == 4 then
+					numPurple = numPurple + 1
+				elseif quality == 7 then
+					numHeirloom = numHeirloom + 1
+				end
+				
+				local level = C_Item.GetCurrentItemLevel(itemLoc)
+				-- print("slot: " .. slot .. " level: " .. level)
+
+				if level > highestILevel then
+					highestILevel = level
+				end
+				
+				if lowestILevel == 0 or level < lowestILevel then
+					lowestILevel = level
+				end
+			end
+		end
 	end
 	
+	-- print("numGreen: " .. numGreen)
+	-- print("numBlue: " .. numBlue)
+	-- print("numPurple: " .. numPurple)
+	-- print("lowestILevel: " .. lowestILevel)
+	-- print("highestILevel: " .. highestILevel)
+	
+	thisCharacter.EquipmentInfo = numGreen				-- bits 0-4, 5 bits = number of green pieces
+				+ bit64:LeftShift(numBlue, 5)				-- bits 5-9, 5 bits = number of blue pieces
+				+ bit64:LeftShift(numPurple, 10)			-- bits 10-14, 5 bits = number of purple pieces
+				+ bit64:LeftShift(numHeirloom, 15)		-- bits 15-19, 5 bits = number of heirloom pieces
+				+ bit64:LeftShift(lowestILevel, 20)		-- bits 20-31, 12 bits = lowest iLevel
+				+ bit64:LeftShift(highestILevel, 32)	-- bits 32+, 12 bits = highest iLevel
 	thisCharacter.lastUpdate = time()
 end
 
@@ -227,11 +276,15 @@ local function OnPlayerAlive()
 	
 	if isRetail then
 		ScanTransmogSets()
+
+		-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
+		C_Timer.After(5, ScanInventory)
 	end
 end
 
 local function OnPlayerEquipmentChanged(event, slot)
-	ScanInventorySlot(slot)
+	-- ScanInventorySlot(slot)
+	ScanInventory()
 	ScanAverageItemLevel()
 	thisCharacter.lastUpdate = time()
 end
@@ -289,6 +342,42 @@ local function _IterateInventory(character, callback)
 	for _, item in pairs(character.Inventory) do
 		callback(item)
 	end
+end
+
+local function _GetNumUncommonEquipment(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 0, 5)	-- bits 0-4, 5 bits = number of green pieces
+		or 0
+end
+
+local function _GetNumRareEquipment(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 5, 5)	-- bits 5-9, 5 bits = number of blue pieces
+		or 0
+end
+
+local function _GetNumEpicEquipment(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 10, 5)	-- bits 10-14, 5 bits = number of purple pieces
+		or 0
+end
+
+local function _GetNumHeirloomEquipment(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 15, 5)	-- bits 15-19, 5 bits = number of heirloom pieces
+		or 0
+end
+
+local function _GetLowestItemLevel(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 20, 12)	-- bits 20-31, 12 bits = lowest iLevel
+		or 0
+end
+
+local function _GetHighestItemLevel(character)
+	return character.EquipmentInfo
+		and bit64:GetBits(character.EquipmentInfo, 32, 12)	-- bits 32+, 12 bits = highest iLevel
+		or 0
 end
 
 local function _GetSetIcon(setID)
@@ -355,6 +444,12 @@ DataStore:OnAddonLoaded(addonName, function()
 				GetInventoryItemCount = _GetInventoryItemCount,
 				GetAverageItemLevel = _GetAverageItemLevel,
 				IterateInventory = _IterateInventory,
+				GetNumUncommonEquipment = isRetail and _GetNumUncommonEquipment,
+				GetNumRareEquipment = isRetail and _GetNumRareEquipment,
+				GetNumEpicEquipment = isRetail and _GetNumEpicEquipment,
+				GetNumHeirloomEquipment = isRetail and _GetNumHeirloomEquipment,
+				GetLowestItemLevel = isRetail and _GetLowestItemLevel,
+				GetHighestItemLevel = isRetail and _GetHighestItemLevel,
 			},
 		},
 
