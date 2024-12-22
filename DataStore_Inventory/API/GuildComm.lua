@@ -11,7 +11,7 @@ local TableInsert, TableConcat, format, strsplit, pairs, type, tonumber, time = 
 local UnitName = UnitName
 
 local commPrefix = "DS_Inv"
-local L = DataStore:GetLocale(addonName)
+local L = AddonFactory:GetLocale(addonName)
 
 -- Message types
 local MSG_SEND_AIL								= 1	-- Send AIL at login
@@ -185,7 +185,7 @@ local commCallbacks = {
 		end,
 }
 
-DataStore:OnAddonLoaded(addonName, function() 
+AddonFactory:OnAddonLoaded(addonName, function() 
 	DataStore:RegisterTables({
 		addon = addon,
 		guildTables = {
@@ -210,7 +210,7 @@ DataStore:OnAddonLoaded(addonName, function()
 	DataStore:RegisterMethod(addon, "RequestGuildMemberEquipment", _RequestGuildMemberEquipment)
 end)
 
-DataStore:OnPlayerLogin(function()
+AddonFactory:OnPlayerLogin(function()
 	options = DataStore:SetDefaults("DataStore_Inventory_Options", {
 		BroadcastAiL = true,							-- Broadcast professions at login or not
 		AutoClearGuildInventory = false,			-- Automatically clear guild members' inventory at login

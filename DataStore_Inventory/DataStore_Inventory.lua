@@ -18,7 +18,7 @@ local C_TransmogCollection, C_TransmogSets = C_TransmogCollection, C_TransmogSet
 
 local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
 
-local L = DataStore:GetLocale(addonName)
+local L = AddonFactory:GetLocale(addonName)
 local bit64 = LibStub("LibBit64")
 
 
@@ -228,6 +228,21 @@ local function ScanTransmogSets()
 		
 		if classArmorMask[englishClass] == set.classMask then class = englishClass end
 
+		--[[ 01/12/2024: Do not change this.
+				It would be very tempting to read all classes at once, but even though it is possible, 
+				the data can be wrong for classes other than the current one.
+				Even worse, it can be wrong when comparing two characters of the same class.
+				Something is very wrong on Blizzard's side.
+				Case 1: 
+				- I farm the Icecrown citadel sets for paladin, I complete the 3 versions fully with a paladin.
+				- Then I log in with another alt, the completion of the paladin set is incorrect, even a few days later, so it's not just a matter of refreshing some cache.
+				
+				Case 2:
+				- Same story for the warrior set. I complete it on one warrior.
+				- Then a few days later I want to check the warrior set from another warrior, and same thing, it appears incomplete.
+				
+				Why make things easy when you can make them complicated ..
+		--]]
 		if class == englishClass then
 			local setID = set.setID
 
@@ -239,6 +254,11 @@ local function ScanTransmogSets()
 			local numCollected = 0
 			local iconID = 0
 
+			-- Avoid reading the iconID multiple times, because the call is memory intensive, so take the known saved iconID if we have one already.
+			if setInfo[setID] then
+				iconID = bit64:RightShift(setInfo[setID], 8)		-- bits 8+, iconID for this set
+			end
+
 			for _, appearance in pairs(appearances) do
 				numTotal = numTotal + 1
 				if appearance.collected then
@@ -249,11 +269,20 @@ local function ScanTransmogSets()
 					collectedSets[setID][appearance.appearanceID] = true
 				end
 				
-				local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
+				-- if we previously knew the iconID for this set, don't read it again
+				if iconID == 0 then
 				
-				-- 2 = head slot, couldn't find the constant for that :(
-				if info and info.invType == 2 then	
-					iconID = info.itemID
+					-- This call is causing a lot of memory consumption, do not do it too often
+					local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
+					
+					-- Note that there is a direct way to get this item id with C_TransmogCollection.GetSourceItemID(itemModifiedAppearanceID)
+					-- but it's still necessary to identify the head piece of gear, so we cannot skip the previous call.
+					
+					-- 2 = head slot, couldn't find the constant for that :(
+					if info and info.invType == 2 then	
+						iconID = info.itemID
+						-- print("appear ID : " .. appearance.appearanceID .. " itemID : " ..info.itemID)
+					end
 				end
 			end
 
@@ -298,7 +327,7 @@ local function OnTransmogCollectionLoaded()
 	ScanTransmogSets()
 end
 
-local function OnTransmogCollectionUpdated()
+local function OnTransmogCollectionUpdated(event, collectionIndex, modID, itemAppearanceID, reason)
 	ScanTransmogCollection()
 	ScanTransmogSets()
 end
@@ -427,7 +456,7 @@ local function _IsSetItemCollected(setID, sourceID)
 end
 
 
-DataStore:OnAddonLoaded(addonName, function()
+AddonFactory:OnAddonLoaded(addonName, function()
 	DataStore:RegisterModule({
 		addon = addon,
 		addonName = addonName,
@@ -471,7 +500,7 @@ DataStore:OnAddonLoaded(addonName, function()
 	DataStore:RegisterMethod(addon, "GetCollectedSetInfo", _GetCollectedSetInfo)
 end)
 
-DataStore:OnPlayerLogin(function()
+AddonFactory:OnPlayerLogin(function()
 	addon:ListenTo("PLAYER_ALIVE", OnPlayerAlive)
 	addon:ListenTo("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
 	

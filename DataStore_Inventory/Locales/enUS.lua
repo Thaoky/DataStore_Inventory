@@ -1,5 +1,5 @@
 local addonName = ...
-local L = DataStore:SetDefaultLocale(addonName, "enUS")
+local L = AddonFactory:SetDefaultLocale(addonName, "enUS")
 
 L["CLEAR_INVENTORY_TEXT"] = "Automatically clear guild members' equipment"
 L["CLEAR_INVENTORY_DISABLED"] = "Your guild mates' equipment remains in the database, and is visible even if they are offline."
