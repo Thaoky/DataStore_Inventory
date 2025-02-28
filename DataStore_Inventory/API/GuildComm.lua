@@ -104,7 +104,7 @@ local function _RequestGuildMemberEquipment(member)
 		
 		if thisGuild and thisGuild.Members[member] then		-- player found
 			if thisGuild.Members[member].Inventory then		-- equipment found
-				DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
+				AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 				return
 			end
 		end
@@ -112,7 +112,7 @@ local function _RequestGuildMemberEquipment(member)
 	
 	if main == player then	-- if player requests the equipment of one of own alts, process the request locally, using the network works fine, but let's save the traffic.
 		-- trigger the same event, _GetGuildMemberInventoryItem will take care of picking the data in the right place
-		DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
+		AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 		return
 	end
 	
@@ -180,7 +180,7 @@ local commCallbacks = {
 			if thisGuild then
 				thisGuild.Members[character].Inventory = equipment
 				thisGuild.Members[character].lastUpdate = time()
-				DataStore:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", sender, character)
+				AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", sender, character)
 			end
 		end,
 }

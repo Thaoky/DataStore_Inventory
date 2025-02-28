@@ -103,7 +103,7 @@ local function ScanInventorySlot(slot)
 	end
 	
 	if currentContent ~= inventory[slot] then		-- the content of this slot has actually changed since last scan
-		DataStore:Broadcast("DATASTORE_INVENTORY_SLOT_UPDATED", slot)
+		AddonFactory:Broadcast("DATASTORE_INVENTORY_SLOT_UPDATED", slot)
 	end
 end
 
