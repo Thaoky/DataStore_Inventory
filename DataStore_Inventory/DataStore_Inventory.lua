@@ -17,7 +17,7 @@ local GetAverageItemLevel, GetInventoryItemLink, GetItemInfo, GetItemInfoInstant
 local C_TransmogCollection, C_TransmogSets = C_TransmogCollection, C_TransmogSets
 
 local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
-
+local isMists = LE_EXPANSION_LEVEL_CURRENT == LE_EXPANSION_LEVEL_MISTS_OF_PANDARIA
 local L = AddonFactory:GetLocale(addonName)
 local bit64 = LibStub("LibBit64")
 
@@ -504,7 +504,7 @@ AddonFactory:OnPlayerLogin(function()
 	addon:ListenTo("PLAYER_ALIVE", OnPlayerAlive)
 	addon:ListenTo("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
 	
-	if isRetail then
+	if isRetail or isMists then
 		addon:ListenTo("PLAYER_AVG_ITEM_LEVEL_UPDATE", OnPlayerAilReady)
 		-- addon:ListenTo("TRANSMOG_COLLECTION_LOADED", OnTransmogCollectionLoaded)
 		addon:ListenTo("TRANSMOG_COLLECTION_UPDATED", OnTransmogCollectionUpdated)
