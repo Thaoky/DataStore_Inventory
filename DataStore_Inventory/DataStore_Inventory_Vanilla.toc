@@ -1,4 +1,4 @@
-## Interface: 11506
+## Interface: 11508
 ## Title: DataStore_Inventory
 ## IconTexture: Interface\Icons\garrison_building_storehouse
 
