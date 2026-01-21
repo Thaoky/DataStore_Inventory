@@ -9,6 +9,18 @@
 ## SavedVariables: DataStore_Inventory_Characters, DataStore_Inventory_Guilds, DataStore_Inventory_Options
 ## X-Category: Interface Enhancements
 
+## Category: Libraries
+## Category-deDE: Bibliotheken
+## Category-esES: Bibliotecas
+## Category-esMX: Bibliotecas
+## Category-frFR: Bibliothèques
+## Category-itIT: Librerie
+## Category-koKR: 라이브러리
+## Category-ptBR: Bibliotecas
+## Category-ruRU: Библиотеки
+## Category-zhCN: 函数库
+## Category-zhTW: 函式庫
+
 Embeds.xml
 Locale.xml
 
