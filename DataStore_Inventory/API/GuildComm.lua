@@ -22,7 +22,7 @@ local MSG_EQUIPMENT_TRANSFER					= 4	-- .. and send the data
 -- *** Utility functions ***
 local function GetThisGuild()
 	local guildID = DataStore:GetCharacterGuildID(DataStore.ThisCharKey)
-	return guildID and guilds[guildID] 
+	return guildID and guilds[guildID]
 end
 
 local function GetMemberKey(guild, member)
@@ -37,7 +37,10 @@ local function GetMemberKey(guild, member)
 		
 		return DataStore_Inventory_Characters[id]
 	end
-	
+
+	if not guild or not guild.Members then
+		return nil
+	end
 	return guild.Members[member]
 end
 
