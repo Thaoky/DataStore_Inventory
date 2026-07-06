@@ -22,7 +22,7 @@ local MSG_EQUIPMENT_TRANSFER					= 4	-- .. and send the data
 -- *** Utility functions ***
 local function GetThisGuild()
 	local guildID = DataStore:GetCharacterGuildID(DataStore.ThisCharKey)
-	return guildID and guilds[guildID] 
+	return guildID and guilds[guildID]
 end
 
 local function GetMemberKey(guild, member)
@@ -37,7 +37,10 @@ local function GetMemberKey(guild, member)
 		
 		return DataStore_Inventory_Characters[id]
 	end
-	
+
+	if not guild or not guild.Members then
+		return nil
+	end
 	return guild.Members[member]
 end
 
@@ -98,18 +101,19 @@ local function _RequestGuildMemberEquipment(member)
 	-- requests the equipment of a given character (alt or main)
 	local player = UnitName("player")
 	local main = DataStore:GetNameOfMain(member)
-	
+
 	if not main then 		-- player is offline, check if his equipment is in the DB
 		local thisGuild = GetThisGuild()
-		
+
 		if thisGuild and thisGuild.Members[member] then		-- player found
 			if thisGuild.Members[member].Inventory then		-- equipment found
 				AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 				return
 			end
 		end
+		main = member	-- (GovtGeek) I can't test this since I'm not in a guild, but it *seems* to work
 	end
-	
+
 	if main == player then	-- if player requests the equipment of one of own alts, process the request locally, using the network works fine, but let's save the traffic.
 		-- trigger the same event, _GetGuildMemberInventoryItem will take care of picking the data in the right place
 		AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
