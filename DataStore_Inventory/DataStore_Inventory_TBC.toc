@@ -1,25 +1,13 @@
-## Interface: 50504
+## Interface: 20505
 ## Title: DataStore_Inventory
 ## IconTexture: Interface\Icons\garrison_building_storehouse
 
 ## Notes: Stores information about character inventory
 ## Author: Thaoky (EU-Marécages de Zangar)
 ## Version: 2026.07.06
-## Dependencies: AddonFactory, DataStore
+## Dependencies: DataStore
 ## SavedVariables: DataStore_Inventory_Characters, DataStore_Inventory_Guilds, DataStore_Inventory_Options
 ## X-Category: Interface Enhancements
-
-## Category: Libraries
-## Category-deDE: Bibliotheken
-## Category-esES: Bibliotecas
-## Category-esMX: Bibliotecas
-## Category-frFR: Bibliothèques
-## Category-itIT: Librerie
-## Category-koKR: 라이브러리
-## Category-ptBR: Bibliotecas
-## Category-ruRU: Библиотеки
-## Category-zhCN: 函数库
-## Category-zhTW: 函式庫
 
 Embeds.xml
 Locale.xml
