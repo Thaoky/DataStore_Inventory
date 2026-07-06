@@ -217,84 +217,111 @@ local classArmorMask = {
 	["EVOKER"] = 4164, -- Hunter (4) + Shaman (64) + Evoker (4096)
 }
 
+local function ScanTransmogSet(set, englishClass)
+	local class = classMasks[set.classMask]
+
+	if classArmorMask[englishClass] == set.classMask then class = englishClass end
+
+	--[[ 01/12/2024: Do not change this.
+			It would be very tempting to read all classes at once, but even though it is possible,
+			the data can be wrong for classes other than the current one.
+			Even worse, it can be wrong when comparing two characters of the same class.
+			Something is very wrong on Blizzard's side.
+			Case 1:
+			- I farm the Icecrown citadel sets for paladin, I complete the 3 versions fully with a paladin.
+			- Then I log in with another alt, the completion of the paladin set is incorrect, even a few days later, so it's not just a matter of refreshing some cache.
+
+			Case 2:
+			- Same story for the warrior set. I complete it on one warrior.
+			- Then a few days later I want to check the warrior set from another warrior, and same thing, it appears incomplete.
+
+			Why make things easy when you can make them complicated ..
+	--]]
+	if class ~= englishClass then return end
+
+	local setID = set.setID
+
+	-- coming from Blizzard_Wardrobe.lua:
+	-- WardrobeSetsDataProviderMixin:GetSetSourceData
+	-- WardrobeSetsDataProviderMixin:GetSortedSetSources
+	local appearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
+	local numTotal = 0
+	local numCollected = 0
+	local iconID = 0
+
+	-- Avoid reading the iconID multiple times, because the call is memory intensive, so take the known saved iconID if we have one already.
+	if setInfo[setID] then
+		iconID = bit64:RightShift(setInfo[setID], 8)		-- bits 8+, iconID for this set
+	end
+
+	for _, appearance in pairs(appearances) do
+		numTotal = numTotal + 1
+		if appearance.collected then
+			numCollected = numCollected + 1
+
+			-- ex: [setID] = true, list of collected sets
+			collectedSets[setID] = collectedSets[setID] or {}
+			collectedSets[setID][appearance.appearanceID] = true
+		end
+
+		-- if we previously knew the iconID for this set, don't read it again
+		if iconID == 0 then
+
+			-- This call is causing a lot of memory consumption, do not do it too often
+			local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
+
+			-- Note that there is a direct way to get this item id with C_TransmogCollection.GetSourceItemID(itemModifiedAppearanceID)
+			-- but it's still necessary to identify the head piece of gear, so we cannot skip the previous call.
+
+			-- 2 = head slot, couldn't find the constant for that :(
+			if info and info.invType == 2 then
+				iconID = info.itemID
+				-- print("appear ID : " .. appearance.appearanceID .. " itemID : " ..info.itemID)
+			end
+		end
+	end
+
+	if numTotal == numCollected then
+		collectedSets[set.setID] = nil	-- if set is complete, kill the table, the counters will tell it
+	end
+
+	setInfo[setID] = numTotal						-- bits 0-3, 4 bits = number of pieces in the set
+		+ bit64:LeftShift(numCollected, 4)		-- bits 4-7, 4 bits = number of collected pieces
+		+ bit64:LeftShift(iconID, 8)				-- bits 8+, iconID for this set
+end
+
+-- Drive the per-set scan in chunks across frames. C_TransmogSets.GetAllSets()
+-- returns ~1000 entries on 12.0+, and GetSetPrimaryAppearances + GetSourceInfo
+-- per-appearance are memory-heavy. Doing them all in one synchronous pass
+-- exceeds WoW's "script ran too long" budget on retail.
+local SETS_PER_FRAME = 50
+local transmogScanGen = 0	-- bumped each time we kick off a scan; lets in-flight chunks notice they've been superseded
+
 local function ScanTransmogSets()
 	local sets = C_TransmogSets.GetAllSets()
 	if not sets then return end
 
 	local englishClass = select(2, UnitClass("player"))
-	
-	for _, set in pairs(sets) do
-		local class = classMasks[set.classMask]
-		
-		if classArmorMask[englishClass] == set.classMask then class = englishClass end
+	transmogScanGen = transmogScanGen + 1
+	local myGen = transmogScanGen
 
-		--[[ 01/12/2024: Do not change this.
-				It would be very tempting to read all classes at once, but even though it is possible, 
-				the data can be wrong for classes other than the current one.
-				Even worse, it can be wrong when comparing two characters of the same class.
-				Something is very wrong on Blizzard's side.
-				Case 1: 
-				- I farm the Icecrown citadel sets for paladin, I complete the 3 versions fully with a paladin.
-				- Then I log in with another alt, the completion of the paladin set is incorrect, even a few days later, so it's not just a matter of refreshing some cache.
-				
-				Case 2:
-				- Same story for the warrior set. I complete it on one warrior.
-				- Then a few days later I want to check the warrior set from another warrior, and same thing, it appears incomplete.
-				
-				Why make things easy when you can make them complicated ..
-		--]]
-		if class == englishClass then
-			local setID = set.setID
+	-- Snapshot the iterable into a contiguous array we can index across frames.
+	local list = {}
+	for _, set in pairs(sets) do list[#list + 1] = set end
 
-			-- coming from Blizzard_Wardrobe.lua:
-			-- WardrobeSetsDataProviderMixin:GetSetSourceData
-			-- WardrobeSetsDataProviderMixin:GetSortedSetSources
-			local appearances = C_TransmogSets.GetSetPrimaryAppearances(setID)
-			local numTotal = 0
-			local numCollected = 0
-			local iconID = 0
-
-			-- Avoid reading the iconID multiple times, because the call is memory intensive, so take the known saved iconID if we have one already.
-			if setInfo[setID] then
-				iconID = bit64:RightShift(setInfo[setID], 8)		-- bits 8+, iconID for this set
-			end
-
-			for _, appearance in pairs(appearances) do
-				numTotal = numTotal + 1
-				if appearance.collected then
-					numCollected = numCollected + 1
-
-					-- ex: [setID] = true, list of collected sets
-					collectedSets[setID] = collectedSets[setID] or {}
-					collectedSets[setID][appearance.appearanceID] = true
-				end
-				
-				-- if we previously knew the iconID for this set, don't read it again
-				if iconID == 0 then
-				
-					-- This call is causing a lot of memory consumption, do not do it too often
-					local info = C_TransmogCollection.GetSourceInfo(appearance.appearanceID)
-					
-					-- Note that there is a direct way to get this item id with C_TransmogCollection.GetSourceItemID(itemModifiedAppearanceID)
-					-- but it's still necessary to identify the head piece of gear, so we cannot skip the previous call.
-					
-					-- 2 = head slot, couldn't find the constant for that :(
-					if info and info.invType == 2 then	
-						iconID = info.itemID
-						-- print("appear ID : " .. appearance.appearanceID .. " itemID : " ..info.itemID)
-					end
-				end
-			end
-
-			if numTotal == numCollected then
-				collectedSets[set.setID] = nil	-- if set is complete, kill the table, the counters will tell it
-			end
-		
-			setInfo[setID] = numTotal						-- bits 0-3, 4 bits = number of pieces in the set
-				+ bit64:LeftShift(numCollected, 4)		-- bits 4-7, 4 bits = number of collected pieces
-				+ bit64:LeftShift(iconID, 8)				-- bits 8+, iconID for this set
+	local idx = 1
+	local function ProcessBatch()
+		if myGen ~= transmogScanGen then return end	-- a newer scan started, drop this one
+		local endIdx = math.min(idx + SETS_PER_FRAME - 1, #list)
+		while idx <= endIdx do
+			ScanTransmogSet(list[idx], englishClass)
+			idx = idx + 1
+		end
+		if idx <= #list then
+			C_Timer.After(0, ProcessBatch)
 		end
 	end
+	ProcessBatch()
 end
 
 
@@ -327,9 +354,17 @@ local function OnTransmogCollectionLoaded()
 	ScanTransmogSets()
 end
 
+-- TRANSMOG_COLLECTION_UPDATED fires for every appearance acquisition. Debounce
+-- so a multi-pickup (e.g. opening a transmog cache) coalesces into one scan.
+local transmogUpdatePending
 local function OnTransmogCollectionUpdated(event, collectionIndex, modID, itemAppearanceID, reason)
-	ScanTransmogCollection()
-	ScanTransmogSets()
+	if transmogUpdatePending then return end
+	transmogUpdatePending = true
+	C_Timer.After(5, function()
+		transmogUpdatePending = nil
+		ScanTransmogCollection()
+		ScanTransmogSets()
+	end)
 end
 
 local function OnGetItemInfoReceived(event, itemID, success)
