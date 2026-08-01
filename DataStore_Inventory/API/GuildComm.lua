@@ -26,25 +26,21 @@ local function GetThisGuild()
 end
 
 local function GetMemberKey(guild, member)
-	-- returns the appropriate key to address a guild member. 
-	--	Either it's a known alt ==> point to the characters table
+	-- returns the appropriate key to address a guild member.
+	--	Either it's one of our own characters ==> point to the characters table
 	--	Or it's a guild member ==> point to the guild table
-	local main = DataStore:GetNameOfMain(member)
 
-	-- a member whose main is unknown may still be ourselves, same fallback as RequestGuildMemberEquipment
-	main = main or member
+	-- Resolve against our own characters first: our data is always fresher than anything received
+	-- over the guild channel. Do not ask GetNameOfMain() who this member belongs to - it answers
+	-- from the guild alts broadcast, so until that arrives it does not even recognize ourselves,
+	-- and reading data we already have should not depend on the network at all.
+	local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
+	local id = DataStore:GetCharacterID(key)
+	local character = id and DataStore_Inventory_Characters[id]
 
-	if main == UnitName("player") then
-		local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
-		local id = DataStore:GetCharacterID(key)
+	if character then return character end
 
-		return id and DataStore_Inventory_Characters[id]
-	end
-
-	if not guild or not guild.Members then
-		return nil
-	end
-	return guild.Members[member]
+	return guild and guild.Members and guild.Members[member]
 end
 
 local function GetAIL(alts)
