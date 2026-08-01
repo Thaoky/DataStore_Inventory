@@ -25,21 +25,8 @@ local function GetThisGuild()
 	return guildID and guilds[guildID]
 end
 
-local function GetMemberKey(guild, member)
-	-- returns the appropriate key to address a guild member.
-	--	Either it's one of our own characters ==> point to the characters table
-	--	Or it's a guild member ==> point to the guild table
-
-	-- Resolve against our own characters first: our data is always fresher than anything received
-	-- over the guild channel. Do not ask GetNameOfMain() who this member belongs to - it answers
-	-- from the guild alts broadcast, so until that arrives it does not even recognize ourselves,
-	-- and reading data we already have should not depend on the network at all.
-	local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
-	local id = DataStore:GetCharacterID(key)
-	local character = id and DataStore_Inventory_Characters[id]
-
-	if character then return character end
-
+local function GetGuildMemberInfo(guild, member)
+	-- data received over the guild channel, for a member who broadcast something about himself
 	return guild and guild.Members and guild.Members[member]
 end
 
@@ -134,21 +121,33 @@ local function _RequestGuildMemberEquipment(member)
 	DataStore:GuildWhisper(commPrefix, main, MSG_EQUIPMENT_REQUEST, member)
 end
 
+--[[
+	A guild member may be one of our own characters: the one currently logged in, or an alt in the
+	same guild. Those are answered from our own data, which is always there and always fresher than
+	anything the guild channel may have carried. Everyone else is answered from the guild table.
+	Note that we resolve the name through DataStore:GetCharacter() rather than asking
+	GetNameOfMain() who the member belongs to: that one answers from the guild alts broadcast, so
+	until that arrives it does not even recognize ourselves.
+--]]
 local function _GetGuildMemberInventoryItem(guild, member, slotID)
-	local character = GetMemberKey(guild, member)
+	local character = DataStore:GetCharacter(member)		-- this realm, this account
+	if character then
+		return DataStore:GetInventoryItem(character, slotID)
+	end
 
 	-- a member known only through his item level broadcast has no inventory yet
-	if character and character.Inventory then
-		return character.Inventory[slotID]
-	end
+	local info = GetGuildMemberInfo(guild, member)
+	return info and info.Inventory and info.Inventory[slotID]
 end
 
 local function _GetGuildMemberAverageItemLevel(guild, member)
-	local character = GetMemberKey(guild, member)
-
+	local character = DataStore:GetCharacter(member)		-- this realm, this account
 	if character then
-		return character.averageItemLvl
+		return (DataStore:GetAverageItemLevel(character))
 	end
+
+	local info = GetGuildMemberInfo(guild, member)
+	return info and info.averageItemLvl
 end
 
 
