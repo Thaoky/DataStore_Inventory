@@ -43,18 +43,20 @@ local function ScanAverageItemLevel()
 	char.lastUpdate = time()
 	char.overallAIL = 0
 
-	-- GetAverageItemLevel only exists in retail
+	-- GetAverageItemLevel does not exist on every version, and where it does it may still return
+	-- zeroes (Classic Era). Only trust it when it answers with usable values, fall through to the
+	-- manual calculation otherwise, or the character ends up with no item level at all.
 	if type(GetAverageItemLevel) == "function" then
 
 		local overallAiL, AiL = GetAverageItemLevel()
 		if overallAiL and AiL and overallAiL > 0 and AiL > 0 then
 			char.overallAIL = overallAiL
 			char.averageItemLvl = AiL
+			return
 		end
-		return
 	end
-	
-	-- if we get here, GetAverageItemLevel does not exist, we must calculate manually.
+
+	-- if we get here, GetAverageItemLevel is missing or unusable, we must calculate manually.
 	local totalItemLevel = 0
 	local itemCount = 0
 	
