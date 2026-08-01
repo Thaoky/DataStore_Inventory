@@ -91,13 +91,19 @@ local function ScanInventorySlot(slot)
 	local link = GetInventoryItemLink("player", slot)
 
 	local currentContent = inventory[slot]
-	
-	if link then 
+
+	if link then
 		if IsEnchanted(link) then		-- if there's an enchant, save the full link
 			inventory[slot] = link
 		else 									-- .. otherwise, only save the id
 			inventory[slot] = tonumber(link:match("item:(%d+)"))
 		end
+	elseif GetInventoryItemID("player", slot) then
+		-- The slot holds an item, but its link cannot be built yet because the item is not in the
+		-- client cache (typically the first login after a patch, when the cache was invalidated).
+		-- Save the id rather than wiping a slot that is not actually empty. A later rescan, once
+		-- the cache is warm, replaces it with the full link if the item is enchanted.
+		inventory[slot] = GetInventoryItemID("player", slot)
 	else
 		inventory[slot] = nil
 	end
@@ -332,10 +338,12 @@ local function OnPlayerAlive()
 	
 	if isRetail then
 		ScanTransmogSets()
-
-		-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
-		C_Timer.After(5, ScanInventory)
 	end
+
+	-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
+	-- Needed on every version, not just retail : the first scan runs early enough that the item
+	-- cache may still be cold, which is what leaves slots unresolved right after a patch.
+	C_Timer.After(5, ScanInventory)
 end
 
 local function OnPlayerEquipmentChanged(event, slot)
