@@ -30,12 +30,15 @@ local function GetMemberKey(guild, member)
 	--	Either it's a known alt ==> point to the characters table
 	--	Or it's a guild member ==> point to the guild table
 	local main = DataStore:GetNameOfMain(member)
-	
-	if main and main == UnitName("player") then
+
+	-- a member whose main is unknown may still be ourselves, same fallback as RequestGuildMemberEquipment
+	main = main or member
+
+	if main == UnitName("player") then
 		local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
 		local id = DataStore:GetCharacterID(key)
-		
-		return DataStore_Inventory_Characters[id]
+
+		return id and DataStore_Inventory_Characters[id]
 	end
 
 	if not guild or not guild.Members then
@@ -51,7 +54,11 @@ local function GetAIL(alts)
 	
 	local character = DataStore:GetCharacter()	-- this character
 	local ail = DataStore:GetAverageItemLevel(character)
-	TableInsert(out, format("%s:%d", UnitName("player"), ail))
+
+	-- a nil item level would error out of format(), taking the whole broadcast with it
+	if ail then
+		TableInsert(out, format("%s:%d", UnitName("player"), ail))
+	end
 
 	if strlen(alts) > 0 then
 		for _, name in pairs( { strsplit("|", alts) }) do	-- then all his alts
@@ -105,7 +112,7 @@ local function _RequestGuildMemberEquipment(member)
 	if not main then 		-- player is offline, check if his equipment is in the DB
 		local thisGuild = GetThisGuild()
 
-		if thisGuild and thisGuild.Members[member] then		-- player found
+		if thisGuild and thisGuild.Members and thisGuild.Members[member] then		-- player found
 			if thisGuild.Members[member].Inventory then		-- equipment found
 				AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", player, member)
 				return
@@ -133,8 +140,9 @@ end
 
 local function _GetGuildMemberInventoryItem(guild, member, slotID)
 	local character = GetMemberKey(guild, member)
-	
-	if character then
+
+	-- a member known only through his item level broadcast has no inventory yet
+	if character and character.Inventory then
 		return character.Inventory[slotID]
 	end
 end
@@ -182,6 +190,8 @@ local commCallbacks = {
 	[MSG_EQUIPMENT_TRANSFER] = function(sender, character, equipment)
 			local thisGuild = GetThisGuild()
 			if thisGuild then
+				thisGuild.Members = thisGuild.Members or {}
+				thisGuild.Members[character] = thisGuild.Members[character] or {}
 				thisGuild.Members[character].Inventory = equipment
 				thisGuild.Members[character].lastUpdate = time()
 				AddonFactory:Broadcast("DATASTORE_PLAYER_EQUIPMENT_RECEIVED", sender, character)
