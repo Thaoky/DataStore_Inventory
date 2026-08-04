@@ -139,6 +139,25 @@ local function _GetGuildMemberInventoryItem(guild, member, slotID)
 	end
 end
 
+--[[
+	When the equipment we hold for a guild member reached us.
+
+	It has always been written down - the transfer below sets it - but nothing ever read it, so
+	a panel filled from a copy received weeks ago looked exactly like one filled a second ago.
+	That matters here more than anywhere else in the addon: this data does not refresh on its
+	own. It only arrives when the member, or their main, is online and answers, so a stale copy
+	can stay stale for months.
+
+	Our own characters are answered from our own tables, which are written as we play, so there
+	is no timestamp to give and none is wanted.
+--]]
+local function _GetGuildMemberEquipmentTimestamp(guild, member)
+	if DataStore:GetCharacter(member) then return end
+
+	local info = GetGuildMemberInfo(guild, member)
+	return info and info.lastUpdate
+end
+
 local function _GetGuildMemberAverageItemLevel(guild, member)
 	local character = GetMemberKey(guild, member)
 
@@ -196,6 +215,7 @@ AddonFactory:OnAddonLoaded(addonName, function()
 			["DataStore_Inventory_Guilds"] = {
 				GetGuildMemberInventoryItem = _GetGuildMemberInventoryItem,
 				GetGuildMemberAverageItemLevel = _GetGuildMemberAverageItemLevel,
+				GetGuildMemberEquipmentTimestamp = _GetGuildMemberEquipmentTimestamp,
 			},
 		},
 	})
