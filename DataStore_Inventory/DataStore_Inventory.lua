@@ -124,7 +124,7 @@ local function ScanInventory()
 			local itemLoc = ItemLocation:CreateFromEquipmentSlot(slot)
 
 			if itemLoc:IsValid() then
-				local quality = C_Item.GetItemQuality(itemLoc)
+				local quality = nil; if C_Item and C_Item.GetItemQuality and itemLoc and itemLoc.IsValid and itemLoc:IsValid() then local ok, q = pcall(C_Item.GetItemQuality, itemLoc); if ok then quality = q end end
 				
 				if quality == 2 then
 					numGreen = numGreen + 1
@@ -136,7 +136,7 @@ local function ScanInventory()
 					numHeirloom = numHeirloom + 1
 				end
 				
-				local level = C_Item.GetCurrentItemLevel(itemLoc)
+				local level = 0; if C_Item and C_Item.GetCurrentItemLevel and itemLoc and itemLoc.IsValid and itemLoc:IsValid() then local ok, lvl = pcall(C_Item.GetCurrentItemLevel, itemLoc); if ok and lvl then level = lvl end end
 				-- print("slot: " .. slot .. " level: " .. level)
 
 				if level > highestILevel then
