@@ -13,8 +13,8 @@ local appearancesCounters
 
 local DataStore = DataStore
 local TableInsert, TableConcat, strfind, format, strsplit, pairs, type, tonumber, select, time = table.insert, table.concat, string.find, format, strsplit, pairs, type, tonumber, select, time
-local GetAverageItemLevel, GetInventoryItemLink, GetItemInfo, GetItemInfoInstant, UnitClass = GetAverageItemLevel, GetInventoryItemLink, GetItemInfo, GetItemInfoInstant, UnitClass
-local C_TransmogCollection, C_TransmogSets = C_TransmogCollection, C_TransmogSets
+local GetAverageItemLevel, GetInventoryItemLink, UnitClass = GetAverageItemLevel, GetInventoryItemLink, UnitClass
+local C_TransmogCollection, C_TransmogSets, C_Item = C_TransmogCollection, C_TransmogSets, C_Item
 
 local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
 local isMists = LE_EXPANSION_LEVEL_CURRENT == LE_EXPANSION_LEVEL_MISTS_OF_PANDARIA
@@ -63,7 +63,7 @@ local function ScanAverageItemLevel()
 		local link = GetInventoryItemLink("player", i)
 		
 		if link then
-			local itemName = GetItemInfo(link)
+			local itemName = C_Item.GetItemInfo(link)
 			
 			if not itemName then
 				--print("Waiting for equipment slot "..i) --debug
@@ -74,7 +74,7 @@ local function ScanAverageItemLevel()
 
 			if i ~= 4 then		-- InventorySlotId 4 = shirt
 				itemCount = itemCount + 1
-				totalItemLevel = totalItemLevel + tonumber(((select(4, GetItemInfo(link))) or 0))
+				totalItemLevel = totalItemLevel + tonumber(((select(4, C_Item.GetItemInfo(link))) or 0))
 			end
 		end
 	end
@@ -469,7 +469,7 @@ local function _GetSetIcon(setID)
 		local iconID = bit64:RightShift(setInfo[setID], 8)		-- bits 8+, iconID for this set
 	
 		-- return the icon
-		return select(5, GetItemInfoInstant(iconID))
+		return select(5, C_Item.GetItemInfoInstant(iconID))
 	end
 	
 	return QUESTION_MARK_ICON
