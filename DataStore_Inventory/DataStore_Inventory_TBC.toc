@@ -4,7 +4,7 @@
 
 ## Notes: Stores information about character inventory
 ## Author: Thaoky (EU-Marécages de Zangar)
-## Version: 2026.09.22
+## Version: 2026.09.30
 ## Dependencies: DataStore
 ## SavedVariables: DataStore_Inventory_Characters, DataStore_Inventory_Guilds, DataStore_Inventory_Options
 ## X-Category: Interface Enhancements

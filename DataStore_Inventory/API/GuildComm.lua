@@ -8,7 +8,6 @@ local options
 
 local DataStore = DataStore
 local TableInsert, TableConcat, format, strsplit, pairs, type, tonumber, time = table.insert, table.concat, format, strsplit, pairs, type, tonumber, time
-local UnitName = UnitName
 
 local commPrefix = "DS_Inv"
 local L = AddonFactory:GetLocale(addonName)
@@ -31,7 +30,7 @@ local function GetMemberKey(guild, member)
 	--	Or it's a guild member ==> point to the guild table
 	local main = DataStore:GetNameOfMain(member)
 	
-	if main and main == UnitName("player") then
+	if main and main == AddonFactory:GetPlayerName() then
 		local key = format("%s.%s.%s", DataStore.ThisAccount, DataStore.ThisRealm, member)
 		local id = DataStore:GetCharacterID(key)
 		
@@ -51,7 +50,7 @@ local function GetAIL(alts)
 	
 	local character = DataStore:GetCharacter()	-- this character
 	local ail = DataStore:GetAverageItemLevel(character)
-	TableInsert(out, format("%s:%d", UnitName("player"), ail))
+	TableInsert(out, format("%s:%d", AddonFactory:GetPlayerName(), ail))
 
 	if strlen(alts) > 0 then
 		for _, name in pairs( { strsplit("|", alts) }) do	-- then all his alts
@@ -99,7 +98,7 @@ local sentRequests		-- recently sent requests
 
 local function _RequestGuildMemberEquipment(member)
 	-- requests the equipment of a given character (alt or main)
-	local player = UnitName("player")
+	local player = AddonFactory:GetPlayerName()
 	local main = DataStore:GetNameOfMain(member)
 
 	if not main then 		-- player is offline, check if his equipment is in the DB
@@ -150,14 +149,14 @@ end
 
 -- *** Guild Comm ***
 local function OnGuildAltsReceived(self, sender, alts)
-	if sender == UnitName("player") and options.BroadcastAiL then				-- if I receive my own list of alts in the same guild, same realm, same account..
+	if sender == AddonFactory:GetPlayerName() and options.BroadcastAiL then				-- if I receive my own list of alts in the same guild, same realm, same account..
 		DataStore:GuildBroadcast(commPrefix, MSG_SEND_AIL, GetAIL(alts))	-- ..then broacast AIL
 	end
 end
 
 local commCallbacks = {
 	[MSG_SEND_AIL] = function(sender, ail)
-			local player = UnitName("player")
+			local player = AddonFactory:GetPlayerName()
 			if sender ~= player then						-- don't send back to self
 				local alts = DataStore:GetGuildMemberAlts(player)			-- get my own alts
 				if alts and options.BroadcastAiL then
