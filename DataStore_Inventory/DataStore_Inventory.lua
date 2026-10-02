@@ -16,8 +16,9 @@ local TableInsert, TableConcat, strfind, format, strsplit, pairs, type, tonumber
 local GetAverageItemLevel, GetInventoryItemLink, UnitClass = GetAverageItemLevel, GetInventoryItemLink, UnitClass
 local C_TransmogCollection, C_TransmogSets, C_Item = C_TransmogCollection, C_TransmogSets, C_Item
 
-local isRetail = (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
-local isMists = LE_EXPANSION_LEVEL_CURRENT == LE_EXPANSION_LEVEL_MISTS_OF_PANDARIA
+local isRetail = AddonFactory.isRetail
+local isMainline = AddonFactory.isMainline
+
 local L = AddonFactory:GetLocale(addonName)
 local bit64 = LibStub("LibBit64")
 
@@ -508,12 +509,12 @@ AddonFactory:OnAddonLoaded(addonName, function()
 				GetInventoryItemCount = _GetInventoryItemCount,
 				GetAverageItemLevel = _GetAverageItemLevel,
 				IterateInventory = _IterateInventory,
-				GetNumUncommonEquipment = isRetail and _GetNumUncommonEquipment,
-				GetNumRareEquipment = isRetail and _GetNumRareEquipment,
-				GetNumEpicEquipment = isRetail and _GetNumEpicEquipment,
-				GetNumHeirloomEquipment = isRetail and _GetNumHeirloomEquipment,
-				GetLowestItemLevel = isRetail and _GetLowestItemLevel,
-				GetHighestItemLevel = isRetail and _GetHighestItemLevel,
+				GetNumUncommonEquipment = isMainline and _GetNumUncommonEquipment,
+				GetNumRareEquipment = isMainline and _GetNumRareEquipment,
+				GetNumEpicEquipment = isMainline and _GetNumEpicEquipment,
+				GetNumHeirloomEquipment = isMainline and _GetNumHeirloomEquipment,
+				GetLowestItemLevel = isMainline and _GetLowestItemLevel,
+				GetHighestItemLevel = isMainline and _GetHighestItemLevel,
 			},
 		},
 
@@ -527,7 +528,7 @@ AddonFactory:OnAddonLoaded(addonName, function()
 	appearancesCounters = DataStore_Inventory_AppearancesCounters
 	
 	-- Stop here for non-retail
-	if not isRetail then return end
+	if not isMainline then return end
 
 	DataStore:RegisterMethod(addon, "GetSetIcon", _GetSetIcon)
 	DataStore:RegisterMethod(addon, "IsSetCollected", _IsSetCollected)
@@ -540,7 +541,7 @@ AddonFactory:OnPlayerLogin(function()
 	addon:ListenTo("PLAYER_ENTERING_WORLD", OnPlayerAlive)
 	addon:ListenTo("PLAYER_EQUIPMENT_CHANGED", OnPlayerEquipmentChanged)
 	
-	if isRetail or isMists then
+	if isMainline or AddonFactory.isMists then
 		addon:ListenTo("PLAYER_AVG_ITEM_LEVEL_UPDATE", OnPlayerAilReady)
 		-- addon:ListenTo("TRANSMOG_COLLECTION_LOADED", OnTransmogCollectionLoaded)
 		addon:ListenTo("TRANSMOG_COLLECTION_UPDATED", OnTransmogCollectionUpdated)
