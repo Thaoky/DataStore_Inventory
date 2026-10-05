@@ -120,7 +120,7 @@ local function ScanInventory()
 	for slot = 1, NUM_EQUIPMENT_SLOTS do
 		ScanInventorySlot(slot)
 		
-		if isRetail and slot ~= 4 and slot < 19 then
+		if isMainline and slot ~= 4 and slot < 19 then
 			-- https://wowpedia.fandom.com/wiki/ItemLocationMixin
 			local itemLoc = ItemLocation:CreateFromEquipmentSlot(slot)
 
@@ -333,8 +333,11 @@ local function OnPlayerAlive()
 	
 	if isRetail then
 		ScanTransmogSets()
+	end
 
+	if isMainline then
 		-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
+		-- WoW Forever runs on the mainline client and has the same delay: at login, equipped items are not yet available.
 		C_Timer.After(5, ScanInventory)
 	end
 end
