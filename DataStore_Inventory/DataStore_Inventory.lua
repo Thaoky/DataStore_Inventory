@@ -120,7 +120,7 @@ local function ScanInventory()
 	for slot = 1, NUM_EQUIPMENT_SLOTS do
 		ScanInventorySlot(slot)
 		
-		if isRetail and slot ~= 4 and slot < 19 then
+		if isMainline and slot ~= 4 and slot < 19 then
 			-- https://wowpedia.fandom.com/wiki/ItemLocationMixin
 			local itemLoc = ItemLocation:CreateFromEquipmentSlot(slot)
 
