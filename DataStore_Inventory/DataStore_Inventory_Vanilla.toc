@@ -1,10 +1,10 @@
-## Interface: 11508
+## Interface: 11509
 ## Title: DataStore_Inventory
 ## IconTexture: Interface\Icons\garrison_building_storehouse
 
 ## Notes: Stores information about character inventory
 ## Author: Thaoky (EU-Marécages de Zangar)
-## Version: 2026.10.02
+## Version: 2026.10.07
 ## Dependencies: DataStore
 ## SavedVariables: DataStore_Inventory_Characters, DataStore_Inventory_Guilds, DataStore_Inventory_Options
 ## X-Category: Interface Enhancements

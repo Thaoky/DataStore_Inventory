@@ -333,8 +333,11 @@ local function OnPlayerAlive()
 	
 	if isRetail then
 		ScanTransmogSets()
-
-		-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
+	end
+ 
+	if isMainline then
+ 		-- Scan again after 5 seconds, no less, to ensure that item info has been properly updated.
+		-- Classic Forever too: equipment links are not available yet at login, the first scan saves empty slots
 		C_Timer.After(5, ScanInventory)
 	end
 end
