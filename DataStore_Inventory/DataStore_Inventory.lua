@@ -18,6 +18,7 @@ local C_TransmogCollection, C_TransmogSets, C_Item = C_TransmogCollection, C_Tra
 
 local isRetail = AddonFactory.isRetail
 local isMainline = AddonFactory.isMainline
+local isForever = AddonFactory.isForever
 
 local L = AddonFactory:GetLocale(addonName)
 local bit64 = LibStub("LibBit64")
@@ -146,6 +147,31 @@ local function ScanInventory()
 				
 				if lowestILevel == 0 or level < lowestILevel then
 					lowestILevel = level
+				end
+			end
+		elseif isForever and slot ~= 4 and slot < 19 then
+			-- Forever: no ItemLocation, read quality and item level from the link
+			local link = GetInventoryItemLink("player", slot)
+			if link then
+				local _, _, quality, level = C_Item.GetItemInfo(link)
+				level = tonumber(level)
+
+				if quality == 2 then
+					numGreen = numGreen + 1
+				elseif quality == 3 then
+					numBlue = numBlue + 1
+				elseif quality == 4 then
+					numPurple = numPurple + 1
+				end
+
+				if level and level > 0 then
+					if level > highestILevel then
+						highestILevel = level
+					end
+
+					if lowestILevel == 0 or level < lowestILevel then
+						lowestILevel = level
+					end
 				end
 			end
 		end
